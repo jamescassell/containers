@@ -4,13 +4,13 @@ RUN mkdir -p /mnt/rootfs
 RUN sed -i -e 's/^m/#m/' -e 's/^#b/b/' -e 's/$releasever/5.11/g' -e 's#mirror.centos.org/centos#vault.centos.org#g' -e 's#vault.centos.org/centos#vault.centos.org#g' /etc/yum.repos.d/*.repo
 # skip languages
 RUN echo '%_install_langs en_US' >> /etc/rpm/macros
-# only install x86_64 packages
+# only install x86_64 packages https://forums.centos.org/viewtopic.php?t=15491
 RUN bash -c 'cat /etc/yum.conf <(echo multilib_policy = best ; echo "exclude = *.i?86") > /root/yum.conf'
 # uncomment to save an extra 27 MB by skipping docs
 #RUN echo tsflags=nodocs >> /root/yum.conf
 
 # create the rootfs
-RUN yum install --installroot=/mnt/rootfs -c /root/yum.conf install rootfiles curl yum vim-minimal epel-release -y || :
+RUN yum install --installroot=/mnt/rootfs -c /root/yum.conf install yum rootfiles curl yum-utils vim-minimal epel-release -y || :
 
 # enable container-friendly libselinux from centosplus
 RUN bash -c 'cp {,/mnt/rootfs}/etc/yum.repos.d/libselinux.repo'
