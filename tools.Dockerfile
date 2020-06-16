@@ -11,9 +11,12 @@ RUN yum -y upgrade $(rpm -qf /etc/dnf/dnf.conf --qf='%{name}\n') \
     && yum -y install findutils \
     && rm -f $(rpm -qcf /etc/dnf/dnf.conf) \
     && yum -y reinstall $(rpm -qf /etc/dnf/dnf.conf --qf='%{name}\n') \
+    && ( yum config-manager --save --setopt=ubi-*.cost=999 || : ) \
     && rm -rf /var/cache/dnf/*
 
+# weak_deps for UBI 8
 RUN yum -y --installroot=/mnt/sysimage --releasever=/ \
+    --setopt=install_weak_deps=no \
     install \
     glibc-minimal-langpack \
     && rm -rf /mnt/sysimage/var/cache/dnf/*
@@ -30,7 +33,9 @@ FROM glibc-layer as glibc
 COPY --from=glibc-build-nodocs /mnt/sysimage/var /var
 
 FROM glibc-build as coreutils-build
+# reposdir for UBI 8
 RUN yum -y --installroot=/mnt/sysimage --releasever=/ \
+    --setopt=reposdir=/etc/yum.repos.d \
     install \
     coreutils-single \
     && rm -rf /mnt/sysimage/var/cache/dnf/*
@@ -47,6 +52,7 @@ COPY --from=coreutils-build-nodocs /mnt/sysimage/var /var
 
 FROM coreutils-build as rpm-build
 RUN yum -y --installroot=/mnt/sysimage --releasever=/ \
+    --setopt=reposdir=/etc/yum.repos.d \
     --setopt=install_weak_deps=no \
     install \
     rpm \
@@ -64,6 +70,7 @@ COPY --from=rpm-build-nodocs /mnt/sysimage/var /var
 
 FROM rpm-build as yum-build
 RUN yum -y --installroot=/mnt/sysimage --releasever=/ \
+    --setopt=reposdir=/etc/yum.repos.d \
     --setopt=install_weak_deps=no \
     install \
     yum \
@@ -81,6 +88,7 @@ COPY --from=yum-build-nodocs /mnt/sysimage/var /var
 
 FROM yum-build as docs-build
 RUN yum -y --installroot=/mnt/sysimage --releasever=/ \
+    --setopt=reposdir=/etc/yum.repos.d \
     --setopt=install_weak_deps=no \
     install \
     info \
@@ -98,6 +106,7 @@ COPY --from=docs-build /mnt/sysimage/var /var
 
 FROM docs-build as tools-build
 RUN yum -y --installroot=/mnt/sysimage --releasever=/ \
+    --setopt=reposdir=/etc/yum.repos.d \
     --setopt=install_weak_deps=no \
     install \
     bash-completion \
