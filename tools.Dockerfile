@@ -68,19 +68,34 @@ FROM rpm-build-nodocs
 FROM rpm-layer as rpm
 COPY --from=rpm-build-nodocs /mnt/sysimage/var /var
 
-FROM rpm-build as yum-build
+FROM rpm-build as libdnf-build
+RUN yum -y --installroot=/mnt/sysimage --releasever=/ \
+    --setopt=reposdir=/etc/yum.repos.d \
+    --setopt=install_weak_deps=no \
+    install \
+    libdnf \
+    && rm -rf /mnt/sysimage/var/cache/dnf/*
+FROM libdnf-build as libdnf-build-nodocs-nodb
+RUN rpm -r /mnt/sysimage -qda | grep -v '^(contains no files)$' | sed 's#^/#/mnt/sysimage&#' | xargs rm -f \
+    && rm -rf /mnt/sysimage/var/{log/*.log,lib/{rpm,dnf}/*}
+FROM rpm-layer as libdnf-layer
+COPY --from=libdnf-build-nodocs-nodb /mnt/sysimage/ /
+
+FROM libdnf-build as yum-build
 RUN yum -y --installroot=/mnt/sysimage --releasever=/ \
     --setopt=reposdir=/etc/yum.repos.d \
     --setopt=install_weak_deps=no \
     install \
     yum \
-    && rm -rf /mnt/sysimage/var/cache/dnf/*
+    && rm -rf /mnt/sysimage/var/cache/dnf/* \
+    && ( [ -f /etc/yum.repos.d/ubi.repo ] \
+         && cp -a {,/mnt/sysimage}/etc/yum.repos.d/ubi.repo || : )
 
 FROM yum-build as yum-build-nodocs
 RUN rpm -r /mnt/sysimage -qda | grep -v '^(contains no files)$' | sed 's#^/#/mnt/sysimage&#' | xargs rm -f
 FROM yum-build-nodocs as yum-build-nodocs-nodb
 RUN rm -rf /mnt/sysimage/var/{log/*.log,lib/{rpm,dnf}/*}
-FROM rpm-layer as yum-layer
+FROM libdnf-layer as yum-layer
 COPY --from=yum-build-nodocs-nodb /mnt/sysimage/ /
 FROM yum-build-nodocs
 FROM yum-layer as yum
