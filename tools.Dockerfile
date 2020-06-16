@@ -25,7 +25,7 @@ FROM glibc-build as glibc-build-nodocs
 RUN rpm -r /mnt/sysimage -qda | grep -v '^(contains no files)$' | sed 's#^/#/mnt/sysimage&#' | xargs rm -f
 FROM glibc-build-nodocs as glibc-build-nodocs-nodb
 RUN rm -rf /mnt/sysimage/var/{log/*.log,lib/{rpm,dnf}/*}
-FROM myscratch as glibc-layer
+FROM quay.io/cassell/scratch as glibc-layer
 COPY --from=glibc-build-nodocs-nodb /mnt/sysimage/ /
 CMD /bin/bash
 FROM glibc-build-nodocs
