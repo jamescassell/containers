@@ -25,12 +25,12 @@ exec /mnt/p/python3-bin "$@"\n\
 FROM scratch as python
 COPY --from=python-build /mnt/p /mnt/p
 
+# create builder with non-python ansible deps in sysimage
 FROM base as build
 COPY --from=minimal / /mnt/sysimage
 COPY --from=python / /
 # skip languages
 RUN printf '%%_install_langs POSIX:C:C.utf8:C.UTF-8\n' > /etc/rpm/macros._install_langs
-
 # install dependencies for ansible to install packages via libdnf and injected python
 RUN yum -y --releasever=/ --installroot=/mnt/sysimage --setopt=tsflags=nodocs --setopt=install_weak_deps=no install \
 glibc-minimal-langpack \
@@ -41,19 +41,23 @@ libcomps \
 && (rm -rf /mnt/sysimage/var/cache/dnf/{,.[^.]}* /mnt/sysimage/dev/* || :) && \
    (rm -rf /mnt/sysimage/var/lib/*/*.sqlite-shm || :)
 # ^ -shm not needed https://www.sqlite.org/walformat.html#the_wal_index_or_shm_file
-
-FROM minimal as minimal-ansible
-COPY --from=build /mnt/sysimage /
-
-FROM build as ansible-build
+# install ansible into builder
 RUN (case $(rpm --eval '%{dist}') in *el*) : ; ;; *) false ; esac && \
     yum -y install http://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm || : ) && \
     yum -y --setopt=install_weak_deps=no install ansible && \
     (rm -rf /var/cache/dnf/{,.[^.]}* || :)
-
+# make sysroot available to ansible as "container"
 RUN printf 'container ansible_host=/mnt/sysimage ansible_connection=chroot \
 ansible_python_interpreter=/mnt/p/python3 ansible_remote_tmp=/mnt/p/tmp\n\
 ' > /etc/ansible/hosts
+
+# standalone image with non-python ansible deps
+FROM minimal as minimal-ansible
+COPY --from=build /mnt/sysimage /
+
+# build sysroot with ansible
+FROM build as ansible-build
+# workaround /etc/resolv.conf, then build with ansible
 RUN mv /mnt/sysimage/etc/resolv.conf{,.bak} && cp -a {,/mnt/sysimage}/etc/resolv.conf && \
     cp -ral /mnt/p /mnt/sysimage/mnt/p && \
     ansible container -m dnf -a name=libdnf && \
@@ -62,5 +66,6 @@ RUN mv /mnt/sysimage/etc/resolv.conf{,.bak} && cp -a {,/mnt/sysimage}/etc/resolv
     rm -rf /mnt/sysimage/mnt/p && \
     (rm -rf /mnt/sysimage/var/lib/*/*.sqlite-shm || :)
 
+# copy sysroot into final container
 FROM minimal-ansible
 COPY --from=ansible-build /mnt/sysimage /
