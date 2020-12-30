@@ -57,10 +57,11 @@ COPY --from=build /mnt/sysimage /
 
 # build sysroot with ansible
 FROM build as ansible-build
+ARG ANSIBLE_CMD="ansible container -m dnf -a name=libdnf"
 # workaround /etc/resolv.conf, then build with ansible
 RUN mv /mnt/sysimage/etc/resolv.conf{,.bak} && cp -a {,/mnt/sysimage}/etc/resolv.conf && \
     cp -ral /mnt/p /mnt/sysimage/mnt/p && \
-    ansible container -m dnf -a name=libdnf && \
+    $ANSIBLE_CMD && \
     mv /mnt/sysimage/etc/resolv.conf{.bak,} && \
     (rm -rf /mnt/sysimage/var/cache/dnf/{,.[^.]}* /mnt/sysimage/dev/* || :) && \
     rm -rf /mnt/sysimage/mnt/p && \
